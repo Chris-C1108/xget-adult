@@ -70,6 +70,10 @@ export const PLATFORMS = {
   'ip-featherlessai': 'https://api.featherless.ai',
   'ip-hyperbolic': 'https://api.hyperbolic.xyz',
 
+  // Missav 视频平台
+  missav: 'https://missav.ai',
+  'missav-cdn': 'https://surrit.com',
+
   // Container Registries
   'cr-quay': 'https://quay.io',
   'cr-gcr': 'https://gcr.io',

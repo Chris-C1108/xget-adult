@@ -102,6 +102,16 @@ function isGitRequest(request, url) {
 }
 
 /**
+ * Check if the request is for Missav platform
+ * @param {Request} request - The incoming request object
+ * @param {URL} url - Parsed URL object
+ * @returns {boolean} True if this is a Missav request
+ */
+function isMissavRequest(request, url) {
+  return url.pathname.startsWith('/missav/');
+}
+
+/**
  * Check if the request is for an AI inference provider
  * @param {Request} request - The incoming request object
  * @param {URL} url - Parsed URL object
@@ -153,13 +163,14 @@ function isAIInferenceRequest(request, url) {
  * @returns {{valid: boolean, error?: string, status?: number}} Validation result
  */
 function validateRequest(request, url, config = CONFIG) {
-  // Allow POST method for Git, Docker, and AI inference operations
+  // Allow POST method for Git, Docker, AI inference, and Missav operations
   const isGit = isGitRequest(request, url);
   const isDocker = isDockerRequest(request, url);
   const isAI = isAIInferenceRequest(request, url);
+  const isMissav = isMissavRequest(request, url);
 
   const allowedMethods =
-    isGit || isDocker || isAI
+    isGit || isDocker || isAI || isMissav
       ? ['GET', 'HEAD', 'POST', 'PUT', 'PATCH']
       : config.SECURITY.ALLOWED_METHODS;
 
@@ -376,13 +387,16 @@ async function handleRequest(request, env, ctx) {
     // Check if this is an AI inference request
     const isAI = isAIInferenceRequest(request, url);
 
-    // Check cache first (skip cache for Git, Docker, and AI inference operations)
+    // Check if this is a Missav request
+    const isMissav = isMissavRequest(request, url);
+
+    // Check cache first (skip cache for Git, Docker, AI inference, and Missav operations)
     /** @type {Cache} */
     // @ts-ignore - Cloudflare Workers cache API
     const cache = caches.default;
     let response;
 
-    if (!isGit && !isDocker && !isAI) {
+    if (!isGit && !isDocker && !isAI && !isMissav) {
       // For Range requests, try cache match first
       const cacheKey = new Request(targetUrl, request);
       response = await cache.match(cacheKey);
@@ -415,17 +429,17 @@ async function handleRequest(request, env, ctx) {
       redirect: 'follow'
     };
 
-    // Add body for POST/PUT/PATCH requests (Git/Docker/AI inference operations)
-    if (['POST', 'PUT', 'PATCH'].includes(request.method) && (isGit || isDocker || isAI)) {
+    // Add body for POST/PUT/PATCH requests (Git/Docker/AI inference/Missav operations)
+    if (['POST', 'PUT', 'PATCH'].includes(request.method) && (isGit || isDocker || isAI || isMissav)) {
       fetchOptions.body = request.body;
     }
 
     // Cast headers to Headers for proper typing
     const requestHeaders = /** @type {Headers} */ (fetchOptions.headers);
 
-    // Set appropriate headers for Git/Docker/AI vs regular requests
-    if (isGit || isDocker || isAI) {
-      // For Git/Docker/AI operations, copy all headers from the original request
+    // Set appropriate headers for Git/Docker/AI/Missav vs regular requests
+    if (isGit || isDocker || isAI || isMissav) {
+      // For Git/Docker/AI/Missav operations, copy all headers from the original request
       // This ensures protocol compliance
       for (const [key, value] of request.headers.entries()) {
         // Skip headers that might cause issues with proxying
@@ -463,6 +477,17 @@ async function handleRequest(request, env, ctx) {
         // Set appropriate User-Agent for AI requests if not present
         if (!requestHeaders.has('User-Agent')) {
           requestHeaders.set('User-Agent', 'Xget-AI-Proxy/1.0');
+        }
+      }
+
+      // For Missav requests, ensure proper anti-hotlink headers
+      if (isMissav) {
+        requestHeaders.set('Origin', 'https://missav.ai');
+        requestHeaders.set('Referer', request.url.replace('/missav/', '/'));
+        
+        // Set appropriate User-Agent for Missav requests if not present
+        if (!requestHeaders.has('User-Agent')) {
+          requestHeaders.set('User-Agent', 'Mozilla/5.0 (compatible; Xget/1.0)');
         }
       }
     } else {
@@ -526,9 +551,9 @@ async function handleRequest(request, env, ctx) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), config.TIMEOUT_SECONDS * 1000);
 
-        // For Git/Docker operations, don't use Cloudflare-specific options
+        // For Git/Docker/Missav operations, don't use Cloudflare-specific options
         const finalFetchOptions =
-          isGit || isDocker
+          isGit || isDocker || isMissav
             ? { ...fetchOptions, signal: controller.signal }
             : { ...fetchOptions, signal: controller.signal };
 
@@ -726,8 +751,8 @@ async function handleRequest(request, env, ctx) {
     // Prepare response headers
     const headers = new Headers(response.headers);
 
-    if (isGit || isDocker) {
-      // For Git/Docker operations, preserve all headers from the upstream response
+    if (isGit || isDocker || isMissav) {
+      // For Git/Docker/Missav operations, preserve all headers from the upstream response
       // These protocols are very sensitive to header changes
       // Don't add any additional headers that might interfere with protocol operation
       // The response headers from upstream should be passed through as-is
@@ -759,13 +784,14 @@ async function handleRequest(request, env, ctx) {
       headers
     });
 
-    // Cache successful responses (skip caching for Git, Docker, and AI inference operations)
+    // Cache successful responses (skip caching for Git, Docker, AI inference, and Missav operations)
     // Only cache GET and HEAD requests to avoid "Cannot cache response to non-GET request" errors
     // IMPORTANT: Only cache 200 responses, NOT 206 responses (Cloudflare Workers Cache API rejects 206)
     if (
       !isGit &&
       !isDocker &&
       !isAI &&
+      !isMissav &&
       ['GET', 'HEAD'].includes(request.method) &&
       response.ok &&
       response.status === 200 // Only cache complete responses (200), not partial content (206)
@@ -795,7 +821,7 @@ async function handleRequest(request, env, ctx) {
     }
 
     monitor.mark('complete');
-    return isGit || isDocker || isAI
+    return isGit || isDocker || isAI || isMissav
       ? finalResponse
       : addPerformanceHeaders(finalResponse, monitor);
   } catch (error) {
