@@ -752,9 +752,13 @@ async function handleRequest(request, env, ctx) {
         
         // Handle Missav HTML content rewriting
         if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
-          // Only rewrite CDN URLs, not navigation URLs to avoid redirect loops
           if (platform === 'missav') {
-            // Only rewrite surrit.com URLs to go through our missav-cdn proxy
+            // Rewrite all missav.ai URLs to go through our proxy
+            rewrittenText = rewrittenText.replace(
+              /https:\/\/missav\.ai\//g,
+              `${url.origin}/missav/`
+            );
+            // Rewrite surrit.com URLs to go through our missav-cdn proxy
             rewrittenText = rewrittenText.replace(
               /https:\/\/surrit\.com\//g,
               `${url.origin}/missav-cdn/`
@@ -783,6 +787,17 @@ async function handleRequest(request, env, ctx) {
 
     // Prepare response headers
     const headers = new Headers(response.headers);
+    
+    // Rewrite Link headers for Missav to prevent preconnect to original domain
+    if (isMissav && headers.has('link')) {
+      const linkHeader = headers.get('link');
+      if (linkHeader) {
+        const rewrittenLink = linkHeader
+          .replace(/https:\/\/missav\.ai\//g, `${url.origin}/missav/`)
+          .replace(/https:\/\/surrit\.com\//g, `${url.origin}/missav-cdn/`);
+        headers.set('link', rewrittenLink);
+      }
+    }
 
     if (isGit || isDocker) {
       // For Git/Docker/Missav operations, preserve all headers from the upstream response
