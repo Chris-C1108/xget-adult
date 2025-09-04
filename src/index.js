@@ -1,5 +1,6 @@
 import { CONFIG, createConfig } from './config/index.js';
 import { transformPath } from './config/platforms.js';
+import { isAdUrl, filterAds, getAdBlockScript } from './adblock.js';
 
 /**
  * Monitors performance metrics during request processing
@@ -753,6 +754,9 @@ async function handleRequest(request, env, ctx) {
         // Handle Missav HTML content rewriting
         if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
           if (platform === 'missav') {
+            // 过滤广告内容
+            rewrittenText = filterAds(rewrittenText);
+            
             // Rewrite all missav.ai URLs to go through our proxy
             rewrittenText = rewrittenText.replace(
               /https:\/\/missav\.ai\//g,
@@ -763,6 +767,14 @@ async function handleRequest(request, env, ctx) {
               /https:\/\/surrit\.com\//g,
               `${url.origin}/missav-cdn/`
             );
+            
+            // 注入广告屏蔽脚本
+            const adBlockScript = getAdBlockScript();
+            if (rewrittenText.includes('</head>')) {
+              rewrittenText = rewrittenText.replace('</head>', `${adBlockScript}</head>`);
+            } else if (rewrittenText.includes('</body>')) {
+              rewrittenText = rewrittenText.replace('</body>', `${adBlockScript}</body>`);
+            }
           } else if (platform === 'missav-cdn') {
             // Rewrite surrit.com URLs to go through our proxy
             rewrittenText = rewrittenText.replace(
