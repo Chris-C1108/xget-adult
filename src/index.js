@@ -371,6 +371,14 @@ async function handleRequest(request, env, ctx) {
       return createErrorResponse(`Platform '${platform}' not supported. Path: ${effectivePath}`, 404);
     }
 
+    // For container registries, ensure we add the /v2 prefix for the Docker API
+    let finalTargetPath;
+    if (platform.startsWith('cr-')) {
+      finalTargetPath = `/v2${targetPath}`;
+    } else {
+      finalTargetPath = targetPath;
+    }
+
     const targetUrl = `${config.PLATFORMS[platform]}${finalTargetPath}${url.search}`;
     
     console.log('Final URL construction:', {
