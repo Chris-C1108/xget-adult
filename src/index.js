@@ -731,65 +731,65 @@ async function handleRequest(request, env, ctx) {
 
     // Handle URL rewriting for different platforms
     let responseBody = response.body;
-
-    // Handle PyPI simple index URL rewriting
+    let needsRewrite = false;
+    
+    // Check if we need to rewrite content
     if (platform === 'pypi' && response.headers.get('content-type')?.includes('text/html')) {
-      const originalText = await response.text();
-      // Rewrite URLs in the response body to go through the Cloudflare Worker
-      // files.pythonhosted.org URLs should be rewritten to go through our pypi/files endpoint
-      const rewrittenText = originalText.replace(
-        /https:\/\/files\.pythonhosted\.org/g,
-        `${url.origin}/pypi/files`
-      );
-      responseBody = new ReadableStream({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode(rewrittenText));
-          controller.close();
-        }
-      });
+      needsRewrite = true;
+    } else if (platform === 'npm' && response.headers.get('content-type')?.includes('application/json')) {
+      needsRewrite = true;
+    } else if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
+      needsRewrite = true;
     }
-
-    // Handle npm registry URL rewriting
-    if (platform === 'npm' && response.headers.get('content-type')?.includes('application/json')) {
-      const originalText = await response.text();
-      // Rewrite tarball URLs in npm registry responses to go through our npm endpoint
-      // https://registry.npmjs.org/package/-/package-version.tgz -> https://xget.xi-xu.me/npm/package/-/package-version.tgz
-      const rewrittenText = originalText.replace(
-        /https:\/\/registry\.npmjs\.org\/([^\/]+)/g,
-        `${url.origin}/npm/$1`
-      );
-      responseBody = new ReadableStream({
-        start(controller) {
-          controller.enqueue(new TextEncoder().encode(rewrittenText));
-          controller.close();
-        }
-      });
-    }
-
-    // Handle Missav HTML content rewriting
-    if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
+    
+    if (needsRewrite) {
       try {
-        const originalText = await response.text();
-        // Rewrite internal URLs to go through our proxy
+        // Clone the response to avoid consuming the original body
+        const clonedResponse = response.clone();
+        const originalText = await clonedResponse.text();
         let rewrittenText = originalText;
         
-        if (platform === 'missav') {
-          // Rewrite missav.ai URLs to go through our proxy
+        // Handle PyPI simple index URL rewriting
+        if (platform === 'pypi' && response.headers.get('content-type')?.includes('text/html')) {
+          // Rewrite URLs in the response body to go through the Cloudflare Worker
+          // files.pythonhosted.org URLs should be rewritten to go through our pypi/files endpoint
           rewrittenText = rewrittenText.replace(
-            /https:\/\/missav\.ai\//g,
-            `${url.origin}/missav/`
+            /https:\/\/files\.pythonhosted\.org/g,
+            `${url.origin}/pypi/files`
           );
-          // Rewrite surrit.com URLs to go through our missav-cdn proxy
+        }
+        
+        // Handle npm registry URL rewriting
+        if (platform === 'npm' && response.headers.get('content-type')?.includes('application/json')) {
+          // Rewrite tarball URLs in npm registry responses to go through our npm endpoint
+          // https://registry.npmjs.org/package/-/package-version.tgz -> https://xget.xi-xu.me/npm/package/-/package-version.tgz
           rewrittenText = rewrittenText.replace(
-            /https:\/\/surrit\.com\//g,
-            `${url.origin}/missav-cdn/`
+            /https:\/\/registry\.npmjs\.org\/([^\/]+)/g,
+            `${url.origin}/npm/$1`
           );
-        } else if (platform === 'missav-cdn') {
-          // Rewrite surrit.com URLs to go through our proxy
-          rewrittenText = rewrittenText.replace(
-            /https:\/\/surrit\.com\//g,
-            `${url.origin}/missav-cdn/`
-          );
+        }
+        
+        // Handle Missav HTML content rewriting
+        if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
+          // Rewrite internal URLs to go through our proxy
+          if (platform === 'missav') {
+            // Rewrite missav.ai URLs to go through our proxy
+            rewrittenText = rewrittenText.replace(
+              /https:\/\/missav\.ai\//g,
+              `${url.origin}/missav/`
+            );
+            // Rewrite surrit.com URLs to go through our missav-cdn proxy
+            rewrittenText = rewrittenText.replace(
+              /https:\/\/surrit\.com\//g,
+              `${url.origin}/missav-cdn/`
+            );
+          } else if (platform === 'missav-cdn') {
+            // Rewrite surrit.com URLs to go through our proxy
+            rewrittenText = rewrittenText.replace(
+              /https:\/\/surrit\.com\//g,
+              `${url.origin}/missav-cdn/`
+            );
+          }
         }
         
         responseBody = new ReadableStream({
@@ -799,7 +799,7 @@ async function handleRequest(request, env, ctx) {
           }
         });
       } catch (error) {
-        console.error('Error rewriting Missav content:', error);
+        console.error('Error rewriting content:', error);
         // If rewriting fails, use original body
         responseBody = response.body;
       }
