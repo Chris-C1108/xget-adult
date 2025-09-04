@@ -1,7 +1,3 @@
-## outputs limits
- - 生成代码或输出文档时分段输出，每次不要超过 200 行
- - 修改代码或文档时，仅修改变化的行，不要重新输出全文
-
 ## 项目概况
  - 项目代码托管在GitHub 
  - 需要部署测试前 需要使用git命令将代码提交到github https://github.com/Chris-C1108/xget-adult  用户github key = [REDACTED]
