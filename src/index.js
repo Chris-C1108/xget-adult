@@ -599,24 +599,11 @@ async function handleRequest(request, env, ctx) {
                 headHeaders.set('Content-Length', arrayBuffer.byteLength.toString());
               }
 
-              // For HEAD requests, create response without body - check status codes that cannot have body
-              const statusCodesWithoutBody = [101, 204, 205, 304];
-              const responseBody = statusCodesWithoutBody.includes(getResponse.status) ? null : undefined;
-              
-              response = new Response(responseBody, {
+              // For HEAD requests, always create response without body
+              response = new Response(null, {
                 status: getResponse.status,
                 statusText: getResponse.statusText,
                 headers: headHeaders
-              });
-            }
-          } else if (response.ok) {
-            // For successful HEAD requests, ensure no body for status codes that shouldn't have one
-            const statusCodesWithoutBody = [101, 204, 205, 304];
-            if (statusCodesWithoutBody.includes(response.status)) {
-              response = new Response(null, {
-                status: response.status,
-                statusText: response.statusText,
-                headers: response.headers
               });
             }
           }
@@ -812,6 +799,12 @@ async function handleRequest(request, env, ctx) {
     // Create final response - handle status codes that cannot have body
     const statusCodesWithoutBody = [101, 204, 205, 304];
     const shouldHaveBody = !statusCodesWithoutBody.includes(response.status) && request.method !== 'HEAD';
+    
+    // For status codes that cannot have body, ensure body is null and remove content-length
+    if (!shouldHaveBody) {
+      headers.delete('Content-Length');
+      headers.delete('Content-Encoding');
+    }
     
     const finalResponse = new Response(shouldHaveBody ? responseBody : null, {
       status: response.status,
