@@ -34,9 +34,9 @@
         return;
     }
 
-    // URL重定向规则
+    // URL重定向规则 - 只在原始域名上执行
     for (const [sourceUrl, targetPath] of Object.entries(CONFIG.urlMappings)) {
-        if (currentUrl.startsWith(sourceUrl)) {
+        if (currentUrl.startsWith(sourceUrl) && !currentUrl.includes(CONFIG.targetDomain)) {
             window.location.replace(currentUrl.replace(sourceUrl, CONFIG.targetDomain + targetPath));
             return;
         }
