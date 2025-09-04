@@ -794,15 +794,9 @@ async function handleRequest(request, env, ctx) {
               `${url.origin}/missav/`
             );
             
-            // 注入广告屏蔽脚本到head最前面，确保最早执行
+            // 在HTML最开始就注入屏蔽脚本
             const adBlockScript = getAdBlockScript();
-            if (rewrittenText.includes('<head>')) {
-              rewrittenText = rewrittenText.replace('<head>', `<head>${adBlockScript}`);
-            } else if (rewrittenText.includes('<html>')) {
-              rewrittenText = rewrittenText.replace('<html>', `<html>${adBlockScript}`);
-            } else {
-              rewrittenText = adBlockScript + rewrittenText;
-            }
+            rewrittenText = adBlockScript + rewrittenText;
           } else if (platform === 'missav-cdn') {
             // Rewrite surrit.com URLs to go through our proxy
             rewrittenText = rewrittenText.replace(

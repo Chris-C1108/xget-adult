@@ -148,16 +148,22 @@ export function filterAds(html) {
     ''
   );
   
-  // 移除所有eval脚本（更安全）
+  // 移除所有eval脚本
   filteredHtml = filteredHtml.replace(
     /<script[^>]*>\s*eval\([\s\S]*?<\/script>/gi,
-    ''
+    '<!-- eval script removed -->'
   );
   
-  // 移除包含特定关键词的脚本
+  // 移除包含跳转的脚本
   filteredHtml = filteredHtml.replace(
-    /<script[^>]*>[\s\S]*?(?:window\.location|document\.location|location\.href|location\.replace)[\s\S]*?<\/script>/gi,
-    ''
+    /<script[^>]*>[\s\S]*?(?:window\.location|document\.location|location\.href|location\.replace|location\.assign|missav\.ai)[\s\S]*?<\/script>/gi,
+    '<!-- redirect script removed -->'
+  );
+  
+  // 移除包含setTimeout/setInterval跳转的脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*>[\s\S]*?(?:setTimeout|setInterval)[\s\S]*?(?:location|missav\.ai)[\s\S]*?<\/script>/gi,
+    '<!-- timer redirect script removed -->'
   );
   
   return filteredHtml;
@@ -173,127 +179,56 @@ export function getAdBlockScript() {
 (function() {
   'use strict';
   
-  // 广告域名黑名单
-  const adDomains = ${JSON.stringify(AD_DOMAINS)};
-  
-  // 完全阻止广告域名请求
+  // 立即阻止所有跳转，不等待任何初始化
   try {
-    const originalFetch = window.fetch;
-    window.fetch = function(url, options) {
-      if (typeof url === 'string') {
-        const blockedDomains = [
-          'trackwilltrk.com', 'rmhfrtnd.com', 'twinrdengine.com',
-          'tsyndicate.com', 'sunnycloudstone.com', 'myavlive.com',
-          'googletagmanager.com', 'google-analytics.com'
-        ];
-        
-        for (const domain of blockedDomains) {
-          if (url.includes(domain)) {
-            console.log('Blocked fetch:', url);
-            return Promise.reject(new Error('Blocked'));
-          }
-        }
-      }
-      return originalFetch.apply(this, arguments);
-    };
-  } catch(e) { console.log('Fetch override failed:', e); }
-  
-  // 阻止XMLHttpRequest到广告域名
-  try {
-    const originalXHROpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function(method, url) {
-      if (typeof url === 'string') {
-        const blockedDomains = [
-          'trackwilltrk.com', 'rmhfrtnd.com', 'twinrdengine.com',
-          'tsyndicate.com', 'sunnycloudstone.com', 'myavlive.com'
-        ];
-        
-        for (const domain of blockedDomains) {
-          if (url.includes(domain)) {
-            console.log('Blocked XHR:', url);
-            throw new Error('Blocked XHR');
-          }
-        }
-      }
-      return originalXHROpen.apply(this, arguments);
-    };
-  } catch(e) { console.log('XHR override failed:', e); }
-  
-  // 移除现有广告元素
-  function removeAdElements() {
-    const selectors = ${JSON.stringify(AD_SELECTORS)};
-    selectors.forEach(selector => {
-      document.querySelectorAll(selector).forEach(el => {
-        console.log('Removed ad element:', el);
-        el.remove();
-      });
+    // 阻止 location.href 设置
+    Object.defineProperty(window.location, 'href', {
+      set: function() { console.log('Blocked href redirect'); },
+      get: function() { return window.location.href; }
     });
-  }
+  } catch(e) {}
   
-  // 页面加载完成后移除广告
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', removeAdElements);
-  } else {
-    removeAdElements();
-  }
-  
-  // 监听动态添加的广告元素
-  const observer = new MutationObserver(mutations => {
-    mutations.forEach(mutation => {
-      mutation.addedNodes.forEach(node => {
-        if (node.nodeType === 1) { // Element node
-          const selectors = ${JSON.stringify(AD_SELECTORS)};
-          selectors.forEach(selector => {
-            if (node.matches && node.matches(selector)) {
-              console.log('Blocked dynamically added ad:', node);
-              node.remove();
-            }
-            node.querySelectorAll && node.querySelectorAll(selector).forEach(el => {
-              console.log('Blocked nested ad element:', el);
-              el.remove();
-            });
-          });
-        }
-      });
-    });
-  });
-  
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
-  
-  // 完全阻止页面跳转
   try {
-    const originalLocationSetter = Object.getOwnPropertyDescriptor(Location.prototype, 'href').set;
-    Object.defineProperty(Location.prototype, 'href', {
-      set: function(value) {
-        console.log('Blocked redirect to:', value);
-        return; // 完全阻止跳转
-      },
-      get: function() {
-        return window.location.href;
-      }
-    });
-  } catch(e) { console.log('Location.href override failed:', e); }
+    // 阻止 location 方法
+    window.location.replace = function() { console.log('Blocked replace'); };
+    window.location.assign = function() { console.log('Blocked assign'); };
+    window.open = function() { console.log('Blocked open'); return null; };
+  } catch(e) {}
   
-  // 阻止所有location方法
-  try {
-    Location.prototype.replace = function(url) {
-      console.log('Blocked location.replace:', url);
+  // 阻止 eval 执行
+  const originalEval = window.eval;
+  window.eval = function(code) {
+    if (typeof code === 'string' && 
+        (code.includes('location') || code.includes('missav.ai') || 
+         code.includes('window.location') || code.includes('document.location'))) {
+      console.log('Blocked eval with redirect code');
       return;
-    };
-    Location.prototype.assign = function(url) {
-      console.log('Blocked location.assign:', url);
-      return;
-    };
-    window.open = function() {
-      console.log('Blocked window.open');
-      return null;
-    };
-  } catch(e) { console.log('Location methods override failed:', e); }
+    }
+    return originalEval.call(this, code);
+  };
   
-  console.log('Ad blocker and redirect blocker initialized');
+  // 阻止 setTimeout/setInterval 中的跳转代码
+  const originalSetTimeout = window.setTimeout;
+  window.setTimeout = function(func, delay) {
+    if (typeof func === 'string' && 
+        (func.includes('location') || func.includes('missav.ai'))) {
+      console.log('Blocked setTimeout redirect');
+      return;
+    }
+    return originalSetTimeout.apply(this, arguments);
+  };
+  
+  const originalSetInterval = window.setInterval;
+  window.setInterval = function(func, delay) {
+    if (typeof func === 'string' && 
+        (func.includes('location') || func.includes('missav.ai'))) {
+      console.log('Blocked setInterval redirect');
+      return;
+    }
+    return originalSetInterval.apply(this, arguments);
+  };
+  
+  console.log('Redirect blocker activated immediately');
 })();
 </script>`;
 }
