@@ -404,7 +404,7 @@ async function handleRequest(request, env, ctx) {
     const cache = caches.default;
     let response;
 
-    if (!isGit && !isDocker && !isAI && !isMissav) {
+    if (!isGit && !isDocker && !isAI) {
       // For Range requests, try cache match first
       const cacheKey = new Request(targetUrl, request);
       response = await cache.match(cacheKey);
@@ -488,33 +488,7 @@ async function handleRequest(request, env, ctx) {
         }
       }
 
-      // For Missav requests, ensure proper anti-hotlink headers
-      if (isMissav) {
-        if (platform === 'missav') {
-          requestHeaders.set('Origin', 'https://missav.ai');
-          requestHeaders.set('Referer', 'https://missav.ai/');
-        } else if (platform === 'missav-cdn') {
-          requestHeaders.set('Origin', 'https://surrit.com');
-          requestHeaders.set('Referer', 'https://surrit.com/');
-        }
-        
-        // Set appropriate User-Agent for Missav requests if not present
-        if (!requestHeaders.has('User-Agent')) {
-          requestHeaders.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        }
-        
-        // Add additional headers to bypass anti-bot protection
-        requestHeaders.set('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8');
-        requestHeaders.set('Accept-Language', 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7');
-        requestHeaders.set('Accept-Encoding', 'gzip, deflate, br');
-        requestHeaders.set('Cache-Control', 'no-cache');
-        requestHeaders.set('Pragma', 'no-cache');
-        requestHeaders.set('Sec-Fetch-Dest', 'document');
-        requestHeaders.set('Sec-Fetch-Mode', 'navigate');
-        requestHeaders.set('Sec-Fetch-Site', 'none');
-        requestHeaders.set('Sec-Fetch-User', '?1');
-        requestHeaders.set('Upgrade-Insecure-Requests', '1');
-      }
+
     } else {
       // Regular file download headers
       Object.assign(fetchOptions, {
@@ -576,11 +550,8 @@ async function handleRequest(request, env, ctx) {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), config.TIMEOUT_SECONDS * 1000);
 
-        // For Git/Docker/Missav operations, don't use Cloudflare-specific options
-        const finalFetchOptions =
-          isGit || isDocker || isMissav
-            ? { ...fetchOptions, signal: controller.signal }
-            : { ...fetchOptions, signal: controller.signal };
+        // For Git/Docker operations, don't use Cloudflare-specific options
+        const finalFetchOptions = { ...fetchOptions, signal: controller.signal };
 
         response = await fetch(targetUrl, finalFetchOptions);
 
@@ -776,7 +747,7 @@ async function handleRequest(request, env, ctx) {
     // Prepare response headers
     const headers = new Headers(response.headers);
 
-    if (isGit || isDocker || isMissav) {
+    if (isGit || isDocker) {
       // For Git/Docker/Missav operations, preserve all headers from the upstream response
       // These protocols are very sensitive to header changes
       // Don't add any additional headers that might interfere with protocol operation
@@ -827,7 +798,7 @@ async function handleRequest(request, env, ctx) {
       !isGit &&
       !isDocker &&
       !isAI &&
-      !isMissav &&
+
       ['GET', 'HEAD'].includes(request.method) &&
       response.ok &&
       response.status === 200 // Only cache complete responses (200), not partial content (206)
@@ -857,7 +828,7 @@ async function handleRequest(request, env, ctx) {
     }
 
     monitor.mark('complete');
-    return isGit || isDocker || isAI || isMissav
+    return isGit || isDocker || isAI
       ? finalResponse
       : addPerformanceHeaders(finalResponse, monitor);
   } catch (error) {
