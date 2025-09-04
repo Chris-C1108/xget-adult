@@ -343,6 +343,14 @@ async function handleRequest(request, env, ctx) {
         return effectivePath.startsWith(expectedPrefix);
       }) || effectivePath.split('/')[1];
 
+    // Debug logging
+    console.log('Debug info:', {
+      effectivePath,
+      platformFromSplit: effectivePath.split('/')[1],
+      platform,
+      platformExists: !!config.PLATFORMS[platform]
+    });
+
     if (!platform || !config.PLATFORMS[platform]) {
       const HOME_PAGE_URL = 'https://github.com/Chris-C1108/xget_adult';
       return Response.redirect(HOME_PAGE_URL, 302);
