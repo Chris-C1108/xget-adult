@@ -351,28 +351,34 @@ async function handleRequest(request, env, ctx) {
 
     // Debug logging
     console.log('Debug info:', {
+      originalPath: url.pathname,
       effectivePath,
       platformFromSplit: effectivePath.split('/')[1],
       platform,
-      platformExists: !!config.PLATFORMS[platform]
+      platformExists: !!config.PLATFORMS[platform],
+      platformUrl: config.PLATFORMS[platform]
+    });
+
+    // Transform URL based on platform using unified logic
+    const targetPath = transformPath(effectivePath, platform);
+    console.log('Path transformation:', {
+      input: effectivePath,
+      output: targetPath,
+      platform
     });
 
     if (!platform || !config.PLATFORMS[platform]) {
       return createErrorResponse(`Platform '${platform}' not supported. Path: ${effectivePath}`, 404);
     }
 
-    // Transform URL based on platform using unified logic
-    const targetPath = transformPath(effectivePath, platform);
-
-    // For container registries, ensure we add the /v2 prefix for the Docker API
-    let finalTargetPath;
-    if (platform.startsWith('cr-')) {
-      finalTargetPath = `/v2${targetPath}`;
-    } else {
-      finalTargetPath = targetPath;
-    }
-
     const targetUrl = `${config.PLATFORMS[platform]}${finalTargetPath}${url.search}`;
+    
+    console.log('Final URL construction:', {
+      platformUrl: config.PLATFORMS[platform],
+      finalTargetPath,
+      search: url.search,
+      targetUrl
+    });
     const authorization = request.headers.get('Authorization');
 
     // Handle Docker authentication
