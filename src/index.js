@@ -600,8 +600,14 @@ async function handleRequest(request, env, ctx) {
               }
 
               // For HEAD requests, always create response without body
+              // Ensure we don't use status codes that cannot have a body
+              const headStatus = getResponse.status;
+              if ([101, 204, 205, 304].includes(headStatus)) {
+                // For these status codes, ensure no Content-Length header
+                headHeaders.delete('Content-Length');
+              }
               response = new Response(null, {
-                status: getResponse.status,
+                status: headStatus,
                 statusText: getResponse.statusText,
                 headers: headHeaders
               });
