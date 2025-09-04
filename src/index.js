@@ -581,6 +581,17 @@ async function handleRequest(request, env, ctx) {
           break;
         }
 
+        // Handle manual redirects for Missav
+        if (isMissav && (response.status === 301 || response.status === 302 || response.status === 307 || response.status === 308)) {
+          const location = response.headers.get('Location');
+          if (location) {
+            console.log('Missav redirect detected:', { from: targetUrl, to: location });
+            // Don't follow the redirect, return the original response
+            monitor.mark('redirect_blocked');
+            break;
+          }
+        }
+
         // For container registry, handle authentication challenges more intelligently
         if (isDocker && response.status === 401) {
           monitor.mark('docker_auth_challenge');
