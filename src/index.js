@@ -739,14 +739,14 @@ async function handleRequest(request, env, ctx) {
     let responseBody = response.body;
     let needsRewrite = false;
     
-    // Check if we need to rewrite content
-    if (platform === 'pypi' && response.headers.get('content-type')?.includes('text/html')) {
-      needsRewrite = true;
-    } else if (platform === 'npm' && response.headers.get('content-type')?.includes('application/json')) {
-      needsRewrite = true;
-    } else if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
-      needsRewrite = true;
-    }
+    // Temporarily disable content rewriting to test basic functionality
+    // if (platform === 'pypi' && response.headers.get('content-type')?.includes('text/html')) {
+    //   needsRewrite = true;
+    // } else if (platform === 'npm' && response.headers.get('content-type')?.includes('application/json')) {
+    //   needsRewrite = true;
+    // } else if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
+    //   needsRewrite = true;
+    // }
     
     if (needsRewrite) {
       try {
