@@ -766,6 +766,45 @@ async function handleRequest(request, env, ctx) {
       });
     }
 
+    // Handle Missav HTML content rewriting
+    if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
+      try {
+        const originalText = await response.text();
+        // Rewrite internal URLs to go through our proxy
+        let rewrittenText = originalText;
+        
+        if (platform === 'missav') {
+          // Rewrite missav.ai URLs to go through our proxy
+          rewrittenText = rewrittenText.replace(
+            /https:\/\/missav\.ai\//g,
+            `${url.origin}/missav/`
+          );
+          // Rewrite surrit.com URLs to go through our missav-cdn proxy
+          rewrittenText = rewrittenText.replace(
+            /https:\/\/surrit\.com\//g,
+            `${url.origin}/missav-cdn/`
+          );
+        } else if (platform === 'missav-cdn') {
+          // Rewrite surrit.com URLs to go through our proxy
+          rewrittenText = rewrittenText.replace(
+            /https:\/\/surrit\.com\//g,
+            `${url.origin}/missav-cdn/`
+          );
+        }
+        
+        responseBody = new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(rewrittenText));
+            controller.close();
+          }
+        });
+      } catch (error) {
+        console.error('Error rewriting Missav content:', error);
+        // If rewriting fails, use original body
+        responseBody = response.body;
+      }
+    }
+
     // Prepare response headers
     const headers = new Headers(response.headers);
 
@@ -804,9 +843,10 @@ async function handleRequest(request, env, ctx) {
     if (!shouldHaveBody) {
       headers.delete('Content-Length');
       headers.delete('Content-Encoding');
+      responseBody = null;
     }
     
-    const finalResponse = new Response(shouldHaveBody ? responseBody : null, {
+    const finalResponse = new Response(responseBody, {
       status: response.status,
       statusText: response.statusText,
       headers
