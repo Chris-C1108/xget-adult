@@ -755,50 +755,70 @@ async function handleRequest(request, env, ctx) {
         // Handle Missav HTML content rewriting
         if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
           if (platform === 'missav') {
-            // 过滤广告内容
+            // Workers端直接过滤跳转脚本
+            
+            // 1. 移除所有eval脚本
+            rewrittenText = rewrittenText.replace(
+              /<script[^>]*>\s*eval\([\s\S]*?<\/script>/gi,
+              ''
+            );
+            
+            // 2. 移除包含跳转关键词的脚本
+            const redirectPatterns = [
+              'window\\.location', 'document\\.location', 'location\\.href',
+              'location\\.replace', 'location\\.assign', 'top\\.location',
+              'parent\\.location', 'self\\.location', 'missav\\.ai'
+            ];
+            
+            redirectPatterns.forEach(pattern => {
+              const regex = new RegExp(`<script[^>]*>[\\s\\S]*?${pattern}[\\s\\S]*?<\\/script>`, 'gi');
+              rewrittenText = rewrittenText.replace(regex, '');
+            });
+            
+            // 3. 移除定时器跳转脚本
+            rewrittenText = rewrittenText.replace(
+              /<script[^>]*>[\s\S]*?(?:setTimeout|setInterval)[\s\S]*?(?:location|href)[\s\S]*?<\/script>/gi,
+              ''
+            );
+            
+            // 4. 移除外部广告脚本
+            const adDomains = [
+              'googletagmanager\\.com', 'google-analytics\\.com', 'tsyndicate\\.com',
+              'sunnycloudstone\\.com', 'trackwilltrk\\.com', 'rmhfrtnd\\.com',
+              'twinrdengine\\.com', 'myavlive\\.com', 'outstream\\.video'
+            ];
+            
+            adDomains.forEach(domain => {
+              const regex = new RegExp(`<script[^>]*src="[^"]*${domain}[^"]*"[^>]*><\\/script>`, 'gi');
+              rewrittenText = rewrittenText.replace(regex, '');
+            });
+            
+            // 5. 过滤其他广告内容
             rewrittenText = filterAds(rewrittenText);
             
-            // 重写所有missav.ai相关的URL
+            // 6. URL重写
             rewrittenText = rewrittenText.replace(
               /https:\/\/missav\.ai\//g,
               `${url.origin}/missav/`
             );
-            
-            // 重写相对路径的missav链接
             rewrittenText = rewrittenText.replace(
               /href="\//g,
               `href="${url.origin}/missav/`
             );
-            
-            // 重写src属性中的相对路径
             rewrittenText = rewrittenText.replace(
               /src="\//g,
               `src="${url.origin}/missav/`
             );
-            
-            // 重写surrit.com URL到missav-cdn代理
             rewrittenText = rewrittenText.replace(
               /https:\/\/surrit\.com\//g,
               `${url.origin}/missav-cdn/`
             );
             
-            // 重写其他可能的CDN域名
-            rewrittenText = rewrittenText.replace(
-              /https:\/\/(?:cdn|static|assets)\.missav\.ai\//g,
-              `${url.origin}/missav/`
-            );
-            
-            // 修复双斜杠问题
-            rewrittenText = rewrittenText.replace(
-              new RegExp(`${url.origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\/missav\/\/`, 'g'),
-              `${url.origin}/missav/`
-            );
-            
-            // 在HTML最开始就注入屏蔽脚本
+            // 7. 注入轻量级客户端脚本作为兜底
             const adBlockScript = getAdBlockScript();
             rewrittenText = adBlockScript + rewrittenText;
+            
           } else if (platform === 'missav-cdn') {
-            // Rewrite surrit.com URLs to go through our proxy
             rewrittenText = rewrittenText.replace(
               /https:\/\/surrit\.com\//g,
               `${url.origin}/missav-cdn/`
