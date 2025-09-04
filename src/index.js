@@ -304,7 +304,7 @@ async function handleRequest(request, env, ctx) {
 
     // Redirect root path or invalid platforms to GitHub repository
     if (url.pathname === '/' || url.pathname === '') {
-      const HOME_PAGE_URL = 'https://github.com/xixu-me/Xget';
+      const HOME_PAGE_URL = 'https://github.com/Chris-C1108/xget_adult';
       return Response.redirect(HOME_PAGE_URL, 302);
     }
 
@@ -344,7 +344,7 @@ async function handleRequest(request, env, ctx) {
       }) || effectivePath.split('/')[1];
 
     if (!platform || !config.PLATFORMS[platform]) {
-      const HOME_PAGE_URL = 'https://github.com/xixu-me/Xget';
+      const HOME_PAGE_URL = 'https://github.com/Chris-C1108/xget_adult';
       return Response.redirect(HOME_PAGE_URL, 302);
     }
 
