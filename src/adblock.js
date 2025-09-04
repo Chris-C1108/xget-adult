@@ -131,6 +131,18 @@ export function filterAds(html) {
     ''
   );
   
+  // 移除域名检查跳转代码
+  filteredHtml = filteredHtml.replace(
+    /if\s*\(\s*!\s*\[[^\]]*includes\(window\.location\.host\)[^}]*window\.location\.href\s*=[^}]*\}/gi,
+    ''
+  );
+  
+  // 移除包含字符串拼接的域名检查代码
+  filteredHtml = filteredHtml.replace(
+    /if\s*\(\s*!\s*\[[^\]]*'[kizmyavthisnjlive0123\.]+'.+?includes\(window\.location\.host\)[^}]*window\.location\.href[^}]*\}/gi,
+    ''
+  );
+  
   return filteredHtml;
 }
 
@@ -219,7 +231,33 @@ export function getAdBlockScript() {
     subtree: true
   });
   
-  console.log('Ad blocker initialized');
+  // 拦截域名检查跳转
+  const originalLocationSetter = Object.getOwnPropertyDescriptor(Location.prototype, 'href').set;
+  Object.defineProperty(Location.prototype, 'href', {
+    set: function(value) {
+      // 检查是否为跳转到 missav.ai
+      if (typeof value === 'string' && value.includes('missav.ai') && !window.location.href.includes('missav.ai')) {
+        console.log('Blocked redirect to:', value);
+        return; // 阻止跳转
+      }
+      return originalLocationSetter.call(this, value);
+    },
+    get: function() {
+      return window.location.href;
+    }
+  });
+  
+  // 拦截 location.replace
+  const originalReplace = Location.prototype.replace;
+  Location.prototype.replace = function(url) {
+    if (typeof url === 'string' && url.includes('missav.ai') && !window.location.href.includes('missav.ai')) {
+      console.log('Blocked location.replace to:', url);
+      return;
+    }
+    return originalReplace.call(this, url);
+  };
+  
+  console.log('Ad blocker and redirect blocker initialized');
 })();
 </script>`;
 }
