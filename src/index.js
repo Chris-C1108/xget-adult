@@ -779,7 +779,7 @@ async function handleRequest(request, env, ctx) {
         if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
           // Rewrite internal URLs to go through our proxy
           if (platform === 'missav') {
-            // Rewrite missav.ai URLs to go through our proxy
+            // Rewrite missav.ai URLs to go through our proxy (avoid double rewriting)
             rewrittenText = rewrittenText.replace(
               /https:\/\/missav\.ai\//g,
               `${url.origin}/missav/`
@@ -788,6 +788,11 @@ async function handleRequest(request, env, ctx) {
             rewrittenText = rewrittenText.replace(
               /https:\/\/surrit\.com\//g,
               `${url.origin}/missav-cdn/`
+            );
+            // Fix any double missav prefixes that might have been created
+            rewrittenText = rewrittenText.replace(
+              new RegExp(`${url.origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/missav/missav/`, 'g'),
+              `${url.origin}/missav/`
             );
           } else if (platform === 'missav-cdn') {
             // Rewrite surrit.com URLs to go through our proxy
