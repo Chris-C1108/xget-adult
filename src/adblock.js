@@ -131,15 +131,21 @@ export function filterAds(html) {
     ''
   );
   
-  // 移除域名检查跳转代码
+  // 移除混淆的eval跳转代码
   filteredHtml = filteredHtml.replace(
-    /if\s*\(\s*!\s*\[[^\]]*includes\(window\.location\.host\)[^}]*window\.location\.href\s*=[^}]*\}/gi,
+    /<script[^>]*>\s*eval\(function\(p,a,c,k,e,d\)[\s\S]*?includes[\s\S]*?window\.location[\s\S]*?<\/script>/gi,
     ''
   );
   
-  // 移除包含字符串拼接的域名检查代码
+  // 移除所有包含eval和location的可疑脚本
   filteredHtml = filteredHtml.replace(
-    /if\s*\(\s*!\s*\[[^\]]*'[kizmyavthisnjlive0123\.]+'.+?includes\(window\.location\.host\)[^}]*window\.location\.href[^}]*\}/gi,
+    /<script[^>]*>\s*eval\([\s\S]*?location[\s\S]*?<\/script>/gi,
+    ''
+  );
+  
+  // 移除特定的混淆模式（多层eval嵌套）
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*type="text\/javascript">\s*eval\(function\(p,a,c,k,e,d\)[\s\S]*?split\('\|'\)[\s\S]*?<\/script>/gi,
     ''
   );
   
