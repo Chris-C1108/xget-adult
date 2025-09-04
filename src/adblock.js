@@ -22,7 +22,20 @@ const AD_DOMAINS = [
   'google-analytics.com',
   'www.google-analytics.com',
   'google.com/recaptcha',
-  'bit.ly'
+  'bit.ly',
+  // 添加跳转相关域名
+  'missav.live',
+  '123av.org', 
+  'thisav2.com',
+  'missav.ws',
+  'missav01.com',
+  'm.this.av',
+  'missav888.com',
+  'njavtv.com',
+  'missav123.com',
+  'kiddew.com',
+  'mqav.com',
+  'missav789.com'
 ];
 
 // 广告URL模式
@@ -104,8 +117,6 @@ export function filterAds(html) {
   
   let filteredHtml = html;
   
-  // 只移除明确的广告脚本，避免误删功能脚本
-  
   // 移除外部广告脚本（通过src属性识别）
   filteredHtml = filteredHtml.replace(
     /<script[^>]*src="[^"]*(?:googletagmanager\.com|google-analytics\.com|tsyndicate\.com|sunnycloudstone\.com|trackwilltrk\.com|rmhfrtnd\.com|twinrdengine\.com|outstream\.video)[^"]*"[^>]*><\/script>/gi,
@@ -148,22 +159,60 @@ export function filterAds(html) {
     ''
   );
   
-  // 移除所有eval脚本
+  // === 增强的跳转代码过滤 ===
+  
+  // 1. 移除所有包含eval的脚本（包括混淆的eval）
   filteredHtml = filteredHtml.replace(
-    /<script[^>]*>\s*eval\([\s\S]*?<\/script>/gi,
-    '<!-- eval script removed -->'
+    /<script[^>]*type="text\/javascript"[^>]*>[\s\S]*?eval\([\s\S]*?<\/script>/gi,
+    '<!-- eval redirect script removed -->'
   );
   
-  // 移除包含跳转的脚本
+  // 2. 移除包含多层function混淆的脚本
   filteredHtml = filteredHtml.replace(
-    /<script[^>]*>[\s\S]*?(?:window\.location|document\.location|location\.href|location\.replace|location\.assign|missav\.ai)[\s\S]*?<\/script>/gi,
-    '<!-- redirect script removed -->'
+    /<script[^>]*>[\s\S]*?function\(p,a,c,k,e,d\)[\s\S]*?<\/script>/gi,
+    '<!-- obfuscated script removed -->'
   );
   
-  // 移除包含setTimeout/setInterval跳转的脚本
+  // 3. 移除包含特定混淆模式的脚本
   filteredHtml = filteredHtml.replace(
-    /<script[^>]*>[\s\S]*?(?:setTimeout|setInterval)[\s\S]*?(?:location|missav\.ai)[\s\S]*?<\/script>/gi,
+    /<script[^>]*>[\s\S]*?\|\|\|\|\|[\s\S]*?\.split\([\s\S]*?<\/script>/gi,
+    '<!-- packed script removed -->'
+  );
+  
+  // 4. 移除包含域名检查和跳转的脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*>[\s\S]*?(?:missav\.live|123av\.org|thisav2\.com|missav\.ws|missav01\.com|m\.this\.av|missav888\.com|njavtv\.com|missav123\.com|kiddew\.com|missav\.ai|mqav\.com|missav789\.com)[\s\S]*?<\/script>/gi,
+    '<!-- domain redirect script removed -->'
+  );
+  
+  // 5. 移除包含includes方法的域名检查脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*>[\s\S]*?\.includes\([\s\S]*?location[\s\S]*?<\/script>/gi,
+    '<!-- domain check script removed -->'
+  );
+  
+  // 6. 移除包含window.location的所有脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*>[\s\S]*?(?:window\.location|document\.location|location\.href|location\.replace|location\.assign)[\s\S]*?<\/script>/gi,
+    '<!-- location redirect script removed -->'
+  );
+  
+  // 7. 移除包含setTimeout/setInterval跳转的脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*>[\s\S]*?(?:setTimeout|setInterval)[\s\S]*?(?:location|missav)[\s\S]*?<\/script>/gi,
     '<!-- timer redirect script removed -->'
+  );
+  
+  // 8. 移除包含特定字符串模式的混淆脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*>[\s\S]*?(?:fromCharCode|toString\(36\)|parseInt)[\s\S]*?<\/script>/gi,
+    '<!-- encoded script removed -->'
+  );
+  
+  // 9. 移除包含特定变量名的混淆脚本（如1t, 1f等）
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*>[\s\S]*?\b1[a-z]\([\s\S]*?<\/script>/gi,
+    '<!-- variable obfuscated script removed -->'
   );
   
   return filteredHtml;
@@ -177,26 +226,75 @@ export function getAdBlockScript() {
   return `
 <script>
 (function() {
-  // 立即阻止跳转
+  // 立即阻止所有跳转方式
   try {
-    Object.defineProperty(window.location, 'href', {
-      set: function() { console.log('Blocked redirect'); },
-      get: function() { return window.location.href; }
+    // 阻止location相关操作
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      get: function() { return originalLocation; },
+      set: function() { console.log('Blocked location set'); }
     });
-    window.location.replace = function() { console.log('Blocked replace'); };
-    window.location.assign = function() { console.log('Blocked assign'); };
-    window.open = function() { return null; };
-  } catch(e) {}
+    
+    if (window.location.replace) {
+      window.location.replace = function() { console.log('Blocked replace'); };
+    }
+    if (window.location.assign) {
+      window.location.assign = function() { console.log('Blocked assign'); };
+    }
+    
+    // 阻止window.open
+    window.open = function() { console.log('Blocked window.open'); return null; };
+    
+    // 阻止document.location
+    if (document.location) {
+      Object.defineProperty(document, 'location', {
+        get: function() { return originalLocation; },
+        set: function() { console.log('Blocked document.location set'); }
+      });
+    }
+  } catch(e) { console.log('Location protection error:', e); }
   
-  // 阻止动态生成的跳转代码
+  // 增强的eval阻止
   const originalEval = window.eval;
   window.eval = function(code) {
-    if (typeof code === 'string' && code.includes('location')) {
-      console.log('Blocked eval redirect');
-      return;
+    if (typeof code === 'string') {
+      // 检查是否包含跳转相关代码
+      const suspiciousPatterns = [
+        'location', 'href', 'replace', 'assign', 'missav.ai', 
+        'missav.live', '123av.org', 'thisav2.com', 'includes'
+      ];
+      
+      for (const pattern of suspiciousPatterns) {
+        if (code.includes(pattern)) {
+          console.log('Blocked suspicious eval:', pattern);
+          return;
+        }
+      }
     }
     return originalEval.call(this, code);
   };
+  
+  // 阻止setTimeout/setInterval中的跳转
+  const originalSetTimeout = window.setTimeout;
+  const originalSetInterval = window.setInterval;
+  
+  window.setTimeout = function(func, delay) {
+    if (typeof func === 'string' && func.includes('location')) {
+      console.log('Blocked setTimeout redirect');
+      return;
+    }
+    return originalSetTimeout.apply(this, arguments);
+  };
+  
+  window.setInterval = function(func, delay) {
+    if (typeof func === 'string' && func.includes('location')) {
+      console.log('Blocked setInterval redirect');
+      return;
+    }
+    return originalSetInterval.apply(this, arguments);
+  };
+  
+  console.log('Anti-redirect protection activated');
 })();
 </script>`;
 }

@@ -755,54 +755,38 @@ async function handleRequest(request, env, ctx) {
         // Handle Missav HTML content rewriting
         if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
           if (platform === 'missav') {
-            // Workers端彻底过滤跳转代码
+            // Workers端彻底过滤跳转代码 - 使用更严格的过滤策略
             
-            // 1. 移除所有包含'location'的脚本标签
+            // 1. 首先使用adblock.js的过滤功能
+            rewrittenText = filterAds(rewrittenText);
+            
+            // 2. 额外的严格过滤 - 移除所有可疑的script标签
+            
+            // 移除所有包含混淆特征的脚本
             rewrittenText = rewrittenText.replace(
-              /<script[^>]*>[\s\S]*?location[\s\S]*?<\/script>/gi,
-              ''
+              /<script[^>]*type="text\/javascript"[^>]*>[\s\S]*?(?:eval|function\(p,a,c,k,e,d\)|\|\|\|\|\||fromCharCode|toString\(36\)|parseInt|1[a-z]\(|location|href|replace|assign|includes)[\s\S]*?<\/script>/gi,
+              '<!-- suspicious script removed -->'
             );
             
-            // 2. 移除所有eval脚本
+            // 移除所有内联JavaScript（保留必要的功能脚本）
             rewrittenText = rewrittenText.replace(
-              /<script[^>]*>[\s\S]*?eval\([\s\S]*?<\/script>/gi,
-              ''
+              /<script(?![^>]*src)[^>]*>[\s\S]*?(?:missav\.live|123av\.org|thisav2\.com|missav\.ws|missav01\.com|m\.this\.av|missav888\.com|njavtv\.com|missav123\.com|kiddew\.com|missav\.ai|mqav\.com|missav789\.com)[\s\S]*?<\/script>/gi,
+              '<!-- domain redirect script removed -->'
             );
             
-            // 3. 移除包含'href'的脚本
+            // 移除所有包含特定模式的脚本
             rewrittenText = rewrittenText.replace(
-              /<script[^>]*>[\s\S]*?\.href[\s\S]*?<\/script>/gi,
-              ''
+              /<script[^>]*>[\s\S]*?(?:window\.location|document\.location|location\.|eval\(|function\([^)]*\)\{[^}]*\})[\s\S]*?<\/script>/gi,
+              '<!-- redirect/eval script removed -->'
             );
             
-            // 4. 移除包含'replace'的脚本
-            rewrittenText = rewrittenText.replace(
-              /<script[^>]*>[\s\S]*?\.replace[\s\S]*?<\/script>/gi,
-              ''
-            );
-            
-            // 5. 移除包含'assign'的脚本
-            rewrittenText = rewrittenText.replace(
-              /<script[^>]*>[\s\S]*?\.assign[\s\S]*?<\/script>/gi,
-              ''
-            );
-            
-            // 6. 移除包含'includes'的脚本（域名检查）
-            rewrittenText = rewrittenText.replace(
-              /<script[^>]*>[\s\S]*?\.includes[\s\S]*?<\/script>/gi,
-              ''
-            );
-            
-            // 7. 移除外部广告脚本
+            // 移除外部广告脚本
             rewrittenText = rewrittenText.replace(
               /<script[^>]*src="[^"]*(?:googletagmanager|google-analytics|tsyndicate|sunnycloudstone|trackwilltrk|rmhfrtnd|twinrdengine|myavlive|outstream)[^"]*"[^>]*><\/script>/gi,
               ''
             );
             
-            // 8. 过滤其他广告内容
-            rewrittenText = filterAds(rewrittenText);
-            
-            // 6. URL重写
+            // 3. URL重写
             rewrittenText = rewrittenText.replace(
               /https:\/\/missav\.ai\//g,
               `${url.origin}/missav/`
@@ -820,7 +804,7 @@ async function handleRequest(request, env, ctx) {
               `${url.origin}/missav-cdn/`
             );
             
-            // 7. 注入轻量级客户端脚本作为兜底
+            // 4. 注入增强的客户端脚本作为兜底
             const adBlockScript = getAdBlockScript();
             rewrittenText = adBlockScript + rewrittenText;
             
