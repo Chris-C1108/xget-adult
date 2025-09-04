@@ -148,9 +148,15 @@ export function filterAds(html) {
     ''
   );
   
-  // 只移除包含特定跳转模式的eval脚本（更精确的匹配）
+  // 移除所有eval脚本（更安全）
   filteredHtml = filteredHtml.replace(
-    /<script[^>]*>\s*eval\(function\(p,a,c,k,e,d\)[\s\S]*?(?:trackwilltrk|rmhfrtnd|twinrdengine)[\s\S]*?<\/script>/gi,
+    /<script[^>]*>\s*eval\([\s\S]*?<\/script>/gi,
+    ''
+  );
+  
+  // 移除包含特定关键词的脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*>[\s\S]*?(?:window\.location|document\.location|location\.href|location\.replace)[\s\S]*?<\/script>/gi,
     ''
   );
   
@@ -170,59 +176,48 @@ export function getAdBlockScript() {
   // 广告域名黑名单
   const adDomains = ${JSON.stringify(AD_DOMAINS)};
   
-  // 阻止广告请求（但不阻止正常的API请求）
-  const originalFetch = window.fetch;
-  window.fetch = function(url, options) {
-    if (typeof url === 'string') {
-      // 只阻止明确的广告域名，避免阻止正常功能
-      const adDomainPatterns = [
-        'trackwilltrk.com',
-        'rmhfrtnd.com', 
-        'twinrdengine.com',
-        'tsyndicate.com',
-        'sunnycloudstone.com',
-        'googletagmanager.com',
-        'google-analytics.com'
-      ];
-      
-      for (const domain of adDomainPatterns) {
-        if (url.includes(domain)) {
-          console.log('Blocked ad request:', url);
-          return Promise.reject(new Error('Ad blocked'));
+  // 完全阻止广告域名请求
+  try {
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+      if (typeof url === 'string') {
+        const blockedDomains = [
+          'trackwilltrk.com', 'rmhfrtnd.com', 'twinrdengine.com',
+          'tsyndicate.com', 'sunnycloudstone.com', 'myavlive.com',
+          'googletagmanager.com', 'google-analytics.com'
+        ];
+        
+        for (const domain of blockedDomains) {
+          if (url.includes(domain)) {
+            console.log('Blocked fetch:', url);
+            return Promise.reject(new Error('Blocked'));
+          }
         }
       }
-      
-      // 特别阻止已知的广告API端点
-      if (url.includes('outstream.video') || url.includes('/api/v1/p/p.gif') || url.includes('/g/collect?v=2&tid=')) {
-        console.log('Blocked ad API request:', url);
-        return Promise.reject(new Error('Ad API blocked'));
-      }
-    }
-    return originalFetch.apply(this, arguments);
-  };
+      return originalFetch.apply(this, arguments);
+    };
+  } catch(e) { console.log('Fetch override failed:', e); }
   
-  // 监控但不完全阻止XMLHttpRequest（避免破坏正常功能）
-  const originalXHROpen = XMLHttpRequest.prototype.open;
-  XMLHttpRequest.prototype.open = function(method, url) {
-    if (typeof url === 'string') {
-      const adDomainPatterns = [
-        'trackwilltrk.com',
-        'rmhfrtnd.com', 
-        'twinrdengine.com',
-        'tsyndicate.com',
-        'sunnycloudstone.com'
-      ];
-      
-      for (const domain of adDomainPatterns) {
-        if (url.includes(domain)) {
-          console.log('Detected XHR ad request:', url);
-          // 只记录，不阻止，避免影响页面功能
-          break;
+  // 阻止XMLHttpRequest到广告域名
+  try {
+    const originalXHROpen = XMLHttpRequest.prototype.open;
+    XMLHttpRequest.prototype.open = function(method, url) {
+      if (typeof url === 'string') {
+        const blockedDomains = [
+          'trackwilltrk.com', 'rmhfrtnd.com', 'twinrdengine.com',
+          'tsyndicate.com', 'sunnycloudstone.com', 'myavlive.com'
+        ];
+        
+        for (const domain of blockedDomains) {
+          if (url.includes(domain)) {
+            console.log('Blocked XHR:', url);
+            throw new Error('Blocked XHR');
+          }
         }
       }
-    }
-    return originalXHROpen.apply(this, arguments);
-  };
+      return originalXHROpen.apply(this, arguments);
+    };
+  } catch(e) { console.log('XHR override failed:', e); }
   
   // 移除现有广告元素
   function removeAdElements() {
@@ -268,31 +263,35 @@ export function getAdBlockScript() {
     subtree: true
   });
   
-  // 拦截域名检查跳转
-  const originalLocationSetter = Object.getOwnPropertyDescriptor(Location.prototype, 'href').set;
-  Object.defineProperty(Location.prototype, 'href', {
-    set: function(value) {
-      // 检查是否为跳转到 missav.ai
-      if (typeof value === 'string' && value.includes('missav.ai') && !window.location.href.includes('missav.ai')) {
+  // 完全阻止页面跳转
+  try {
+    const originalLocationSetter = Object.getOwnPropertyDescriptor(Location.prototype, 'href').set;
+    Object.defineProperty(Location.prototype, 'href', {
+      set: function(value) {
         console.log('Blocked redirect to:', value);
-        return; // 阻止跳转
+        return; // 完全阻止跳转
+      },
+      get: function() {
+        return window.location.href;
       }
-      return originalLocationSetter.call(this, value);
-    },
-    get: function() {
-      return window.location.href;
-    }
-  });
+    });
+  } catch(e) { console.log('Location.href override failed:', e); }
   
-  // 拦截 location.replace
-  const originalReplace = Location.prototype.replace;
-  Location.prototype.replace = function(url) {
-    if (typeof url === 'string' && url.includes('missav.ai') && !window.location.href.includes('missav.ai')) {
-      console.log('Blocked location.replace to:', url);
+  // 阻止所有location方法
+  try {
+    Location.prototype.replace = function(url) {
+      console.log('Blocked location.replace:', url);
       return;
-    }
-    return originalReplace.call(this, url);
-  };
+    };
+    Location.prototype.assign = function(url) {
+      console.log('Blocked location.assign:', url);
+      return;
+    };
+    window.open = function() {
+      console.log('Blocked window.open');
+      return null;
+    };
+  } catch(e) { console.log('Location methods override failed:', e); }
   
   console.log('Ad blocker and redirect blocker initialized');
 })();
