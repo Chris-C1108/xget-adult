@@ -482,15 +482,30 @@ async function handleRequest(request, env, ctx) {
 
       // For Missav requests, ensure proper anti-hotlink headers
       if (isMissav) {
-        requestHeaders.set('Origin', 'https://missav.ai');
-        // 构建正确的 Referer URL
-        const refererUrl = targetUrl.replace(config.PLATFORMS[platform], 'https://missav.ai');
-        requestHeaders.set('Referer', refererUrl);
+        if (platform === 'missav') {
+          requestHeaders.set('Origin', 'https://missav.ai');
+          requestHeaders.set('Referer', 'https://missav.ai/');
+        } else if (platform === 'missav-cdn') {
+          requestHeaders.set('Origin', 'https://surrit.com');
+          requestHeaders.set('Referer', 'https://surrit.com/');
+        }
         
         // Set appropriate User-Agent for Missav requests if not present
         if (!requestHeaders.has('User-Agent')) {
-          requestHeaders.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
+          requestHeaders.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         }
+        
+        // Add additional headers to bypass anti-bot protection
+        requestHeaders.set('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8');
+        requestHeaders.set('Accept-Language', 'en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7');
+        requestHeaders.set('Accept-Encoding', 'gzip, deflate, br');
+        requestHeaders.set('Cache-Control', 'no-cache');
+        requestHeaders.set('Pragma', 'no-cache');
+        requestHeaders.set('Sec-Fetch-Dest', 'document');
+        requestHeaders.set('Sec-Fetch-Mode', 'navigate');
+        requestHeaders.set('Sec-Fetch-Site', 'none');
+        requestHeaders.set('Sec-Fetch-User', '?1');
+        requestHeaders.set('Upgrade-Insecure-Requests', '1');
       }
     } else {
       // Regular file download headers
@@ -584,11 +599,24 @@ async function handleRequest(request, env, ctx) {
                 headHeaders.set('Content-Length', arrayBuffer.byteLength.toString());
               }
 
-              // For HEAD requests, create response without body
-              response = new Response(null, {
+              // For HEAD requests, create response without body - check status codes that cannot have body
+              const statusCodesWithoutBody = [101, 204, 205, 304];
+              const responseBody = statusCodesWithoutBody.includes(getResponse.status) ? null : undefined;
+              
+              response = new Response(responseBody, {
                 status: getResponse.status,
                 statusText: getResponse.statusText,
                 headers: headHeaders
+              });
+            }
+          } else if (response.ok) {
+            // For successful HEAD requests, ensure no body for status codes that shouldn't have one
+            const statusCodesWithoutBody = [101, 204, 205, 304];
+            if (statusCodesWithoutBody.includes(response.status)) {
+              response = new Response(null, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: response.headers
               });
             }
           }
@@ -781,9 +809,13 @@ async function handleRequest(request, env, ctx) {
       addSecurityHeaders(headers);
     }
 
-    // Create final response
-    const finalResponse = new Response(responseBody, {
+    // Create final response - handle status codes that cannot have body
+    const statusCodesWithoutBody = [101, 204, 205, 304];
+    const shouldHaveBody = !statusCodesWithoutBody.includes(response.status) && request.method !== 'HEAD';
+    
+    const finalResponse = new Response(shouldHaveBody ? responseBody : null, {
       status: response.status,
+      statusText: response.statusText,
       headers
     });
 

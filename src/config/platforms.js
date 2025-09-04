@@ -110,9 +110,15 @@ export function transformPath(path, platformKey) {
     '/'
   );
 
+  // Special handling for missav platform
+  if (platformKey === 'missav') {
+    // Remove the /missav/ prefix and keep the rest
+    transformedPath = path.replace(/^\/missav\//, '/');
+  }
+
   // Special handling for missav-cdn platform
   if (platformKey === 'missav-cdn') {
-    // Remove the /missav/cdn/ prefix and keep the rest
+    // Remove the /missav-cdn/ prefix and keep the rest
     transformedPath = path.replace(/^\/missav-cdn\//, '/');
   }
 
