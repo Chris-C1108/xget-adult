@@ -217,7 +217,7 @@ function addSecurityHeaders(headers) {
   headers.set('X-Frame-Options', 'DENY');
   headers.set('X-XSS-Protection', '1; mode=block');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  headers.set('Content-Security-Policy', "default-src 'none'; img-src 'self'; script-src 'none'");
+  headers.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; frame-src 'self' https:;");
   headers.set('Permissions-Policy', 'interest-cohort=()');
   return headers;
 }
