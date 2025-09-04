@@ -112,9 +112,12 @@ export function transformPath(path, platformKey) {
 
   // Special handling for missav platform
   if (platformKey === 'missav') {
-    // Remove the /missav/ prefix and keep the rest
-    // Handle both single and double prefix cases
-    return path.replace(/^\/missav(\/missav)?\//, '/');
+    // Remove all /missav/ prefixes (handle multiple redirects)
+    let cleanPath = path;
+    while (cleanPath.startsWith('/missav/')) {
+      cleanPath = cleanPath.replace(/^\/missav\//, '/');
+    }
+    return cleanPath;
   }
 
   // Special handling for missav-cdn platform
