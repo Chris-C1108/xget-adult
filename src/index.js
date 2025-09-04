@@ -108,7 +108,7 @@ function isGitRequest(request, url) {
  * @returns {boolean} True if this is a Missav request
  */
 function isMissavRequest(request, url) {
-  return url.pathname.startsWith('/missav/');
+  return url.pathname.startsWith('/missav/') || url.pathname.startsWith('/missav-cdn/');
 }
 
 /**
@@ -584,6 +584,7 @@ async function handleRequest(request, env, ctx) {
                 headHeaders.set('Content-Length', arrayBuffer.byteLength.toString());
               }
 
+              // For HEAD requests, create response without body
               response = new Response(null, {
                 status: getResponse.status,
                 statusText: getResponse.statusText,
