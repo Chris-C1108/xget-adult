@@ -15,10 +15,12 @@ const AD_DOMAINS = [
   'tsyndicate.com',
   'cdn.tsyndicate.com',
   'pxl-eu.tsyndicate.com',
+  'sunnycloudstone.com',
   'myavlive.com',
   'go.myavlive.com',
   'googletagmanager.com',
   'google-analytics.com',
+  'www.google-analytics.com',
   'google.com/recaptcha',
   'bit.ly'
 ];
@@ -30,6 +32,7 @@ const AD_URL_PATTERNS = [
   /twinrdengine\.com/i,
   /diffusedpassionquaking\.com/i,
   /tsyndicate\.com/i,
+  /sunnycloudstone\.com/i,
   /myavlive\.com/i,
   /googletagmanager\.com/i,
   /google-analytics\.com/i,
@@ -39,7 +42,9 @@ const AD_URL_PATTERNS = [
   /smartpop\//i,
   /direct\//i,
   /\/g\/collect\?v=2&tid=/i,
-  /outstream\.video/i
+  /outstream\.video/i,
+  /\/api\/v1\/p\/p\.gif/i,
+  /\/sdk\/v1\//i
 ];
 
 // 广告相关的HTML元素选择器
@@ -49,10 +54,17 @@ const AD_SELECTORS = [
   'iframe[src*="twinrdengine.com"]',
   'iframe[src*="diffusedpassionquaking.com"]',
   'iframe[src*="tsyndicate.com"]',
+  'iframe[src*="sunnycloudstone.com"]',
   'iframe[src*="myavlive.com"]',
   'iframe[data-link*="trackwilltrk.com"]',
   'script[src*="googletagmanager.com"]',
+  'script[src*="google-analytics.com"]',
+  'script[src*="tsyndicate.com"]',
+  'script[src*="sunnycloudstone.com"]',
+  'script[src*="outstream.video"]',
   'script[src*="google.com/recaptcha"]',
+  'link[href*="tsyndicate.com"]',
+  'img[src*="pxl-eu.tsyndicate.com"]',
   'a[href*="bit.ly"]',
   'a[rel*="sponsored"]'
 ];
@@ -98,9 +110,45 @@ export function filterAds(html) {
     ''
   );
   
+  // 移除Google Analytics相关脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*>[\s\S]*?google-analytics\.com[\s\S]*?<\/script>/gi,
+    ''
+  );
+  
+  // 移除TSyndicate广告脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*>[\s\S]*?tsyndicate\.com[\s\S]*?<\/script>/gi,
+    ''
+  );
+  
+  // 移除sunnycloudstone广告脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*>[\s\S]*?sunnycloudstone\.com[\s\S]*?<\/script>/gi,
+    ''
+  );
+  
+  // 移除outstream.video广告脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*src="[^"]*outstream\.video[^"]*"[^>]*><\/script>/gi,
+    ''
+  );
+  
+  // 移除TSyndicate CSS文件
+  filteredHtml = filteredHtml.replace(
+    /<link[^>]*href="[^"]*tsyndicate\.com[^"]*"[^>]*>/gi,
+    ''
+  );
+  
   // 移除Google Analytics iframe
   filteredHtml = filteredHtml.replace(
     /<noscript><iframe[^>]*googletagmanager\.com[^>]*>[\s\S]*?<\/iframe><\/noscript>/gi,
+    ''
+  );
+  
+  // 移除像素追踪图片
+  filteredHtml = filteredHtml.replace(
+    /<img[^>]*src="[^"]*pxl-eu\.tsyndicate\.com[^"]*"[^>]*>/gi,
     ''
   );
   
@@ -137,15 +185,21 @@ export function filterAds(html) {
     ''
   );
   
-  // 移除所有包含eval和location的可疑脚本
+  // 只移除包含特定跳转模式的eval脚本
   filteredHtml = filteredHtml.replace(
-    /<script[^>]*>\s*eval\([\s\S]*?location[\s\S]*?<\/script>/gi,
+    /<script[^>]*>\s*eval\(function\(p,a,c,k,e,d\)[\s\S]*?includes[\s\S]*?missav\.ai[\s\S]*?<\/script>/gi,
     ''
   );
   
-  // 移除特定的混淆模式（多层eval嵌套）
+  // 移除TSyndicate相关的所有脚本标签
   filteredHtml = filteredHtml.replace(
-    /<script[^>]*type="text\/javascript">\s*eval\(function\(p,a,c,k,e,d\)[\s\S]*?split\('\|'\)[\s\S]*?<\/script>/gi,
+    /<script[^>]*src="[^"]*cdn\.tsyndicate\.com[^"]*"[^>]*><\/script>/gi,
+    ''
+  );
+  
+  // 只移除外部广告脚本，保留内联功能脚本
+  filteredHtml = filteredHtml.replace(
+    /<script[^>]*src="[^"]*(?:tsyndicate|sunnycloudstone|trackwilltrk)[^"]*"[^>]*><\/script>/gi,
     ''
   );
   
@@ -175,18 +229,24 @@ export function getAdBlockScript() {
           return Promise.reject(new Error('Ad blocked'));
         }
       }
+      // 特别阻止TSyndicate相关请求
+      if (url.includes('outstream.video') || url.includes('/api/v1/p/p.gif')) {
+        console.log('Blocked TSyndicate request:', url);
+        return Promise.reject(new Error('TSyndicate ad blocked'));
+      }
     }
     return originalFetch.apply(this, arguments);
   };
   
-  // 阻止XMLHttpRequest广告请求
+  // 阻止XMLHttpRequest广告请求（但不完全阻止，只记录）
   const originalXHROpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(method, url) {
     if (typeof url === 'string') {
       for (const domain of adDomains) {
         if (url.includes(domain)) {
           console.log('Blocked XHR ad request:', url);
-          return;
+          // 不返回，让请求继续但会失败
+          break;
         }
       }
     }
