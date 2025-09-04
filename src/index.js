@@ -755,45 +755,51 @@ async function handleRequest(request, env, ctx) {
         // Handle Missav HTML content rewriting
         if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
           if (platform === 'missav') {
-            // Workers端直接过滤跳转脚本
+            // Workers端彻底过滤跳转代码
             
-            // 1. 移除所有eval脚本
+            // 1. 移除所有包含'location'的脚本标签
             rewrittenText = rewrittenText.replace(
-              /<script[^>]*>\s*eval\([\s\S]*?<\/script>/gi,
+              /<script[^>]*>[\s\S]*?location[\s\S]*?<\/script>/gi,
               ''
             );
             
-            // 2. 移除包含跳转关键词的脚本
-            const redirectPatterns = [
-              'window\\.location', 'document\\.location', 'location\\.href',
-              'location\\.replace', 'location\\.assign', 'top\\.location',
-              'parent\\.location', 'self\\.location', 'missav\\.ai'
-            ];
-            
-            redirectPatterns.forEach(pattern => {
-              const regex = new RegExp(`<script[^>]*>[\\s\\S]*?${pattern}[\\s\\S]*?<\\/script>`, 'gi');
-              rewrittenText = rewrittenText.replace(regex, '');
-            });
-            
-            // 3. 移除定时器跳转脚本
+            // 2. 移除所有eval脚本
             rewrittenText = rewrittenText.replace(
-              /<script[^>]*>[\s\S]*?(?:setTimeout|setInterval)[\s\S]*?(?:location|href)[\s\S]*?<\/script>/gi,
+              /<script[^>]*>[\s\S]*?eval\([\s\S]*?<\/script>/gi,
               ''
             );
             
-            // 4. 移除外部广告脚本
-            const adDomains = [
-              'googletagmanager\\.com', 'google-analytics\\.com', 'tsyndicate\\.com',
-              'sunnycloudstone\\.com', 'trackwilltrk\\.com', 'rmhfrtnd\\.com',
-              'twinrdengine\\.com', 'myavlive\\.com', 'outstream\\.video'
-            ];
+            // 3. 移除包含'href'的脚本
+            rewrittenText = rewrittenText.replace(
+              /<script[^>]*>[\s\S]*?\.href[\s\S]*?<\/script>/gi,
+              ''
+            );
             
-            adDomains.forEach(domain => {
-              const regex = new RegExp(`<script[^>]*src="[^"]*${domain}[^"]*"[^>]*><\\/script>`, 'gi');
-              rewrittenText = rewrittenText.replace(regex, '');
-            });
+            // 4. 移除包含'replace'的脚本
+            rewrittenText = rewrittenText.replace(
+              /<script[^>]*>[\s\S]*?\.replace[\s\S]*?<\/script>/gi,
+              ''
+            );
             
-            // 5. 过滤其他广告内容
+            // 5. 移除包含'assign'的脚本
+            rewrittenText = rewrittenText.replace(
+              /<script[^>]*>[\s\S]*?\.assign[\s\S]*?<\/script>/gi,
+              ''
+            );
+            
+            // 6. 移除包含'includes'的脚本（域名检查）
+            rewrittenText = rewrittenText.replace(
+              /<script[^>]*>[\s\S]*?\.includes[\s\S]*?<\/script>/gi,
+              ''
+            );
+            
+            // 7. 移除外部广告脚本
+            rewrittenText = rewrittenText.replace(
+              /<script[^>]*src="[^"]*(?:googletagmanager|google-analytics|tsyndicate|sunnycloudstone|trackwilltrk|rmhfrtnd|twinrdengine|myavlive|outstream)[^"]*"[^>]*><\/script>/gi,
+              ''
+            );
+            
+            // 8. 过滤其他广告内容
             rewrittenText = filterAds(rewrittenText);
             
             // 6. URL重写
