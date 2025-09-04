@@ -170,65 +170,33 @@ export function filterAds(html) {
 }
 
 /**
- * 生成广告屏蔽的JavaScript代码
- * @returns {string} 客户端广告屏蔽脚本
+ * 生成轻量级客户端屏蔽脚本（仅处理服务端无法过滤的情况）
+ * @returns {string} 客户端屏蔽脚本
  */
 export function getAdBlockScript() {
   return `
 <script>
 (function() {
-  'use strict';
-  
-  // 立即阻止所有跳转，不等待任何初始化
+  // 立即阻止跳转
   try {
-    // 阻止 location.href 设置
     Object.defineProperty(window.location, 'href', {
-      set: function() { console.log('Blocked href redirect'); },
+      set: function() { console.log('Blocked redirect'); },
       get: function() { return window.location.href; }
     });
-  } catch(e) {}
-  
-  try {
-    // 阻止 location 方法
     window.location.replace = function() { console.log('Blocked replace'); };
     window.location.assign = function() { console.log('Blocked assign'); };
-    window.open = function() { console.log('Blocked open'); return null; };
+    window.open = function() { return null; };
   } catch(e) {}
   
-  // 阻止 eval 执行
+  // 阻止动态生成的跳转代码
   const originalEval = window.eval;
   window.eval = function(code) {
-    if (typeof code === 'string' && 
-        (code.includes('location') || code.includes('missav.ai') || 
-         code.includes('window.location') || code.includes('document.location'))) {
-      console.log('Blocked eval with redirect code');
+    if (typeof code === 'string' && code.includes('location')) {
+      console.log('Blocked eval redirect');
       return;
     }
     return originalEval.call(this, code);
   };
-  
-  // 阻止 setTimeout/setInterval 中的跳转代码
-  const originalSetTimeout = window.setTimeout;
-  window.setTimeout = function(func, delay) {
-    if (typeof func === 'string' && 
-        (func.includes('location') || func.includes('missav.ai'))) {
-      console.log('Blocked setTimeout redirect');
-      return;
-    }
-    return originalSetTimeout.apply(this, arguments);
-  };
-  
-  const originalSetInterval = window.setInterval;
-  window.setInterval = function(func, delay) {
-    if (typeof func === 'string' && 
-        (func.includes('location') || func.includes('missav.ai'))) {
-      console.log('Blocked setInterval redirect');
-      return;
-    }
-    return originalSetInterval.apply(this, arguments);
-  };
-  
-  console.log('Redirect blocker activated immediately');
 })();
 </script>`;
 }
