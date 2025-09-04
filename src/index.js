@@ -483,11 +483,13 @@ async function handleRequest(request, env, ctx) {
       // For Missav requests, ensure proper anti-hotlink headers
       if (isMissav) {
         requestHeaders.set('Origin', 'https://missav.ai');
-        requestHeaders.set('Referer', request.url.replace('/missav/', '/'));
+        // 构建正确的 Referer URL
+        const refererUrl = targetUrl.replace(config.PLATFORMS[platform], 'https://missav.ai');
+        requestHeaders.set('Referer', refererUrl);
         
         // Set appropriate User-Agent for Missav requests if not present
         if (!requestHeaders.has('User-Agent')) {
-          requestHeaders.set('User-Agent', 'Mozilla/5.0 (compatible; Xget/1.0)');
+          requestHeaders.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36');
         }
       }
     } else {

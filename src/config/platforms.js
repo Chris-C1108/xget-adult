@@ -110,6 +110,12 @@ export function transformPath(path, platformKey) {
     '/'
   );
 
+  // Special handling for missav-cdn platform
+  if (platformKey === 'missav-cdn') {
+    // Remove the /missav/cdn/ prefix and keep the rest
+    transformedPath = path.replace(/^\/missav-cdn\//, '/');
+  }
+
   // Special handling for crates.io API paths
   if (platformKey === 'crates') {
     // Transform paths to include the API prefix
