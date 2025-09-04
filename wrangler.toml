@@ -6,8 +6,8 @@ compatibility_flags = ["nodejs_compat"]
 workers_dev = false
 
 [[routes]]
-pattern = "xget.loadingi.cloudns.be/*"
-zone_name = "loadingi.cloudns.be"
+pattern = "xget-adult.uni-kui.shop/*"
+zone_name = "uni-kui.shop"
 
 [observability]
 enabled = true
