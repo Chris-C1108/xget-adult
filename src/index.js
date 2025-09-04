@@ -337,11 +337,17 @@ async function handleRequest(request, env, ctx) {
       return pathB.length - pathA.length;
     });
 
-    platform =
-      sortedPlatforms.find(key => {
+    // 特殊处理missav平台检测
+    if (effectivePath.startsWith('/missav/')) {
+      platform = 'missav';
+    } else if (effectivePath.startsWith('/missav-cdn/')) {
+      platform = 'missav-cdn';
+    } else {
+      platform = sortedPlatforms.find(key => {
         const expectedPrefix = `/${key.replace('-', '/')}/`;
         return effectivePath.startsWith(expectedPrefix);
       }) || effectivePath.split('/')[1];
+    }
 
     // Debug logging
     console.log('Debug info:', {
@@ -352,8 +358,7 @@ async function handleRequest(request, env, ctx) {
     });
 
     if (!platform || !config.PLATFORMS[platform]) {
-      const HOME_PAGE_URL = 'https://github.com/Chris-C1108/xget_adult';
-      return Response.redirect(HOME_PAGE_URL, 302);
+      return createErrorResponse(`Platform '${platform}' not supported. Path: ${effectivePath}`, 404);
     }
 
     // Transform URL based on platform using unified logic
