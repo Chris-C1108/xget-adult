@@ -217,7 +217,7 @@ function addSecurityHeaders(headers) {
   headers.set('X-Frame-Options', 'DENY');
   headers.set('X-XSS-Protection', '1; mode=block');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  headers.set('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:; img-src 'self' data: https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:; style-src 'self' 'unsafe-inline' https:; font-src 'self' data: https:; frame-src 'self' https:;");
+  headers.set('Content-Security-Policy', "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; font-src * data:; frame-src *; media-src * data: blob:; object-src *; connect-src *;");
   headers.set('Permissions-Policy', 'interest-cohort=()');
   return headers;
 }
@@ -677,14 +677,13 @@ async function handleRequest(request, env, ctx) {
     let responseBody = response.body;
     let needsRewrite = false;
     
-    // Temporarily disable content rewriting to test basic functionality
-    // if (platform === 'pypi' && response.headers.get('content-type')?.includes('text/html')) {
-    //   needsRewrite = true;
-    // } else if (platform === 'npm' && response.headers.get('content-type')?.includes('application/json')) {
-    //   needsRewrite = true;
-    // } else if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
-    //   needsRewrite = true;
-    // }
+    if (platform === 'pypi' && response.headers.get('content-type')?.includes('text/html')) {
+      needsRewrite = true;
+    } else if (platform === 'npm' && response.headers.get('content-type')?.includes('application/json')) {
+      needsRewrite = true;
+    } else if (isMissav && response.headers.get('content-type')?.includes('text/html')) {
+      needsRewrite = true;
+    }
     
     if (needsRewrite) {
       try {
