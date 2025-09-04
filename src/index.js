@@ -445,7 +445,7 @@ async function handleRequest(request, env, ctx) {
     const fetchOptions = {
       method: request.method,
       headers: new Headers(),
-      redirect: 'follow'
+      redirect: isMissav ? 'manual' : 'follow'
     };
 
     // Add body for POST/PUT/PATCH requests (Git/Docker/AI inference/Missav operations)
