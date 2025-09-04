@@ -104,39 +104,17 @@ export function filterAds(html) {
   
   let filteredHtml = html;
   
-  // 移除Google Tag Manager
+  // 只移除明确的广告脚本，避免误删功能脚本
+  
+  // 移除外部广告脚本（通过src属性识别）
   filteredHtml = filteredHtml.replace(
-    /<script[^>]*>[\s\S]*?googletagmanager\.com[\s\S]*?<\/script>/gi,
+    /<script[^>]*src="[^"]*(?:googletagmanager\.com|google-analytics\.com|tsyndicate\.com|sunnycloudstone\.com|trackwilltrk\.com|rmhfrtnd\.com|twinrdengine\.com|outstream\.video)[^"]*"[^>]*><\/script>/gi,
     ''
   );
   
-  // 移除Google Analytics相关脚本
+  // 移除广告相关的CSS文件
   filteredHtml = filteredHtml.replace(
-    /<script[^>]*>[\s\S]*?google-analytics\.com[\s\S]*?<\/script>/gi,
-    ''
-  );
-  
-  // 移除TSyndicate广告脚本
-  filteredHtml = filteredHtml.replace(
-    /<script[^>]*>[\s\S]*?tsyndicate\.com[\s\S]*?<\/script>/gi,
-    ''
-  );
-  
-  // 移除sunnycloudstone广告脚本
-  filteredHtml = filteredHtml.replace(
-    /<script[^>]*>[\s\S]*?sunnycloudstone\.com[\s\S]*?<\/script>/gi,
-    ''
-  );
-  
-  // 移除outstream.video广告脚本
-  filteredHtml = filteredHtml.replace(
-    /<script[^>]*src="[^"]*outstream\.video[^"]*"[^>]*><\/script>/gi,
-    ''
-  );
-  
-  // 移除TSyndicate CSS文件
-  filteredHtml = filteredHtml.replace(
-    /<link[^>]*href="[^"]*tsyndicate\.com[^"]*"[^>]*>/gi,
+    /<link[^>]*href="[^"]*(?:tsyndicate\.com|sunnycloudstone\.com)[^"]*"[^>]*>/gi,
     ''
   );
   
@@ -148,22 +126,13 @@ export function filterAds(html) {
   
   // 移除像素追踪图片
   filteredHtml = filteredHtml.replace(
-    /<img[^>]*src="[^"]*pxl-eu\.tsyndicate\.com[^"]*"[^>]*>/gi,
+    /<img[^>]*src="[^"]*(?:pxl-eu\.tsyndicate\.com|google-analytics\.com)[^"]*"[^>]*>/gi,
     ''
   );
   
-  // 移除广告iframe
-  AD_DOMAINS.forEach(domain => {
-    const iframeRegex = new RegExp(
-      `<iframe[^>]*${domain.replace('.', '\\.')}[^>]*>[\\s\\S]*?<\\/iframe>`,
-      'gi'
-    );
-    filteredHtml = filteredHtml.replace(iframeRegex, '');
-  });
-  
-  // 移除带有data-link属性的广告iframe
+  // 移除广告iframe（只移除明确的广告域名）
   filteredHtml = filteredHtml.replace(
-    /<iframe[^>]*data-link[^>]*trackwilltrk\.com[^>]*>[^<]*<\/iframe>/gi,
+    /<iframe[^>]*(?:trackwilltrk\.com|rmhfrtnd\.com|twinrdengine\.com|tsyndicate\.com|sunnycloudstone\.com)[^>]*>[\s\S]*?<\/iframe>/gi,
     ''
   );
   
@@ -179,27 +148,9 @@ export function filterAds(html) {
     ''
   );
   
-  // 移除混淆的eval跳转代码
+  // 只移除包含特定跳转模式的eval脚本（更精确的匹配）
   filteredHtml = filteredHtml.replace(
-    /<script[^>]*>\s*eval\(function\(p,a,c,k,e,d\)[\s\S]*?includes[\s\S]*?window\.location[\s\S]*?<\/script>/gi,
-    ''
-  );
-  
-  // 只移除包含特定跳转模式的eval脚本
-  filteredHtml = filteredHtml.replace(
-    /<script[^>]*>\s*eval\(function\(p,a,c,k,e,d\)[\s\S]*?includes[\s\S]*?missav\.ai[\s\S]*?<\/script>/gi,
-    ''
-  );
-  
-  // 移除TSyndicate相关的所有脚本标签
-  filteredHtml = filteredHtml.replace(
-    /<script[^>]*src="[^"]*cdn\.tsyndicate\.com[^"]*"[^>]*><\/script>/gi,
-    ''
-  );
-  
-  // 只移除外部广告脚本，保留内联功能脚本
-  filteredHtml = filteredHtml.replace(
-    /<script[^>]*src="[^"]*(?:tsyndicate|sunnycloudstone|trackwilltrk)[^"]*"[^>]*><\/script>/gi,
+    /<script[^>]*>\s*eval\(function\(p,a,c,k,e,d\)[\s\S]*?(?:trackwilltrk|rmhfrtnd|twinrdengine)[\s\S]*?<\/script>/gi,
     ''
   );
   
@@ -219,33 +170,53 @@ export function getAdBlockScript() {
   // 广告域名黑名单
   const adDomains = ${JSON.stringify(AD_DOMAINS)};
   
-  // 阻止广告请求
+  // 阻止广告请求（但不阻止正常的API请求）
   const originalFetch = window.fetch;
   window.fetch = function(url, options) {
     if (typeof url === 'string') {
-      for (const domain of adDomains) {
+      // 只阻止明确的广告域名，避免阻止正常功能
+      const adDomainPatterns = [
+        'trackwilltrk.com',
+        'rmhfrtnd.com', 
+        'twinrdengine.com',
+        'tsyndicate.com',
+        'sunnycloudstone.com',
+        'googletagmanager.com',
+        'google-analytics.com'
+      ];
+      
+      for (const domain of adDomainPatterns) {
         if (url.includes(domain)) {
           console.log('Blocked ad request:', url);
           return Promise.reject(new Error('Ad blocked'));
         }
       }
-      // 特别阻止TSyndicate相关请求
-      if (url.includes('outstream.video') || url.includes('/api/v1/p/p.gif')) {
-        console.log('Blocked TSyndicate request:', url);
-        return Promise.reject(new Error('TSyndicate ad blocked'));
+      
+      // 特别阻止已知的广告API端点
+      if (url.includes('outstream.video') || url.includes('/api/v1/p/p.gif') || url.includes('/g/collect?v=2&tid=')) {
+        console.log('Blocked ad API request:', url);
+        return Promise.reject(new Error('Ad API blocked'));
       }
     }
     return originalFetch.apply(this, arguments);
   };
   
-  // 阻止XMLHttpRequest广告请求（但不完全阻止，只记录）
+  // 监控但不完全阻止XMLHttpRequest（避免破坏正常功能）
   const originalXHROpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function(method, url) {
     if (typeof url === 'string') {
-      for (const domain of adDomains) {
+      const adDomainPatterns = [
+        'trackwilltrk.com',
+        'rmhfrtnd.com', 
+        'twinrdengine.com',
+        'tsyndicate.com',
+        'sunnycloudstone.com'
+      ];
+      
+      for (const domain of adDomainPatterns) {
         if (url.includes(domain)) {
-          console.log('Blocked XHR ad request:', url);
-          // 不返回，让请求继续但会失败
+          console.log('Detected XHR ad request:', url);
+          // 只记录，不阻止，避免影响页面功能
           break;
         }
       }

@@ -218,7 +218,8 @@ function addSecurityHeaders(headers) {
   headers.set('X-Frame-Options', 'DENY');
   headers.set('X-XSS-Protection', '1; mode=block');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-  headers.set('Content-Security-Policy', "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; font-src * data:; frame-src *; media-src * data: blob:; object-src *; connect-src *;");
+  // 为Missav平台使用更宽松的CSP策略
+  headers.set('Content-Security-Policy', "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob:; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline'; font-src * data:; frame-src *; media-src * data: blob:; object-src *; connect-src *; worker-src * blob:;");
   headers.set('Permissions-Policy', 'interest-cohort=()');
   return headers;
 }
@@ -757,15 +758,40 @@ async function handleRequest(request, env, ctx) {
             // 过滤广告内容
             rewrittenText = filterAds(rewrittenText);
             
-            // Rewrite all missav.ai URLs to go through our proxy
+            // 重写所有missav.ai相关的URL
             rewrittenText = rewrittenText.replace(
               /https:\/\/missav\.ai\//g,
               `${url.origin}/missav/`
             );
-            // Rewrite surrit.com URLs to go through our missav-cdn proxy
+            
+            // 重写相对路径的missav链接
+            rewrittenText = rewrittenText.replace(
+              /href="\//g,
+              `href="${url.origin}/missav/`
+            );
+            
+            // 重写src属性中的相对路径
+            rewrittenText = rewrittenText.replace(
+              /src="\//g,
+              `src="${url.origin}/missav/`
+            );
+            
+            // 重写surrit.com URL到missav-cdn代理
             rewrittenText = rewrittenText.replace(
               /https:\/\/surrit\.com\//g,
               `${url.origin}/missav-cdn/`
+            );
+            
+            // 重写其他可能的CDN域名
+            rewrittenText = rewrittenText.replace(
+              /https:\/\/(?:cdn|static|assets)\.missav\.ai\//g,
+              `${url.origin}/missav/`
+            );
+            
+            // 修复双斜杠问题
+            rewrittenText = rewrittenText.replace(
+              new RegExp(`${url.origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\/missav\/\/`, 'g'),
+              `${url.origin}/missav/`
             );
             
             // 注入广告屏蔽脚本
